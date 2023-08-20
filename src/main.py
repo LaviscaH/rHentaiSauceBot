@@ -163,6 +163,7 @@ def get_sauce(image_url, saucenao_key, redis):
 	# look up image url in cache
 	encoded = redis.get(image_url)
 	if encoded is not None:
+		log.info(f"Found cache entry for {image_url}")
 		saucenao = SauceNAO(image_url)
 		saucenao.decode(encoded)
 		return saucenao
