@@ -8,6 +8,7 @@ import bs4
 import traceback
 import time
 from redis import Redis
+from jinja2 import Template
 
 # this is a logging setup library. But we only want to print out to the console, so we tell it to skip logging to a file
 log = discord_logging.init_logging(folder=None)
@@ -17,7 +18,7 @@ from saucenao import SauceNAO
 
 def load_environment():
 	# rather than hard coding the credentials in the code, we'll use heroku's environment variables
-	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL']
+	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL', 'comment_footer', 'not_found'],
 	success = True
 	variables = {}
 	for name in variable_names:
@@ -31,6 +32,13 @@ def load_environment():
 		return variables
 	else:
 		return None
+
+	
+def init_templates(env_values):
+	return {
+		'comment_footer': Template(env_values['comment_footer']),
+		'not_found': Template(env_values['not_found']),
+	}
 
 
 def init_praw(env_variables):
@@ -169,7 +177,7 @@ def get_sauce(image_url, saucenao_key, redis):
 	return saucenao
 
 
-def build_comment(saucenao):
+def build_comment(saucenao, templates, submission):
 	# take the saucenao fields and build out the comment to respond with
 	# rather than just appending strings one after another, we make a list of all of them and put them
 	# together at the end, it's more efficient
@@ -237,20 +245,9 @@ def build_comment(saucenao):
 	if len(bldr) == 0:
 		return None
 
-	bldr.append("---\n | ")
-	bldr.append("**Support this service on [Patreon](https://www.patreon.com/r_Hentai)** | \n\n")
-	bldr.append("[View full results](")
-	bldr.append(saucenao.saucenao_link)
-	bldr.append(") | **Created for r/Hentai** | ")
-	bldr.append("**Powered by [SauceNAO](https://saucenao.com/)**")
+	bldr.append(templates['comment_footer'].render({ 'saucenao': saucenao, 'submission': submission }))
 
 	return ''.join(bldr)
-
-
-def not_found_text():
-	return \
-		'Submission is not an image or sauce could not be found!\n\n---\n^| ' \
-		'^Created for r/Hentai [(Questions?)](https://reddit.com/user/Kicken)'
 
 
 if __name__ == '__main__':
@@ -259,6 +256,8 @@ if __name__ == '__main__':
 	env_values = load_environment()
 	if env_values is None:
 		sys.exit(1)
+
+	templates = init_templates(env_values)
 
 	reddit = init_praw(env_values)
 	if reddit is None:
@@ -294,7 +293,7 @@ if __name__ == '__main__':
 					if image_url is None:
 						log.info(
 							f"Post {submission.id} in r/{submission.subreddit.display_name} didn't have a url to lookup")
-						result_comment = submission.reply(not_found_text())
+						result_comment = submission.reply(templates['not_found'].render({ 'submission': submission }))
 						result_comment.mod.remove()
 					else:
 						log.info(
@@ -302,7 +301,7 @@ if __name__ == '__main__':
 						# get saucenao results (with Redis caching)
 						saucenao = get_sauce(image_url, env_values['saucenao_key'], redis)
 						# try building the result comment
-						comment_reply = build_comment(saucenao)
+						comment_reply = build_comment(saucenao, templates, submission)
 
 						# if we didn't find a source, message the post author and post the comment
 						if comment_reply is None:

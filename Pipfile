@@ -8,6 +8,7 @@ praw = "*"
 requests = "*"
 beautifulsoup4 = "*"
 redis = "*"
+jinja2 = "*"
 
 [dev-packages]
 
