@@ -7,6 +7,7 @@ import discord_logging
 import bs4
 import traceback
 import time
+from redis import Redis
 
 # this is a logging setup library. But we only want to print out to the console, so we tell it to skip logging to a file
 log = discord_logging.init_logging(folder=None)
@@ -16,7 +17,7 @@ from saucenao import SauceNAO
 
 def load_environment():
 	# rather than hard coding the credentials in the code, we'll use heroku's environment variables
-	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key']
+	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL']
 	success = True
 	variables = {}
 	for name in variable_names:
@@ -96,16 +97,15 @@ def get_submissions_from_multireddit(reddit, multireddit, submissions):
 
 
 def parse_saucenao(page_html, image_url):
+	# we use an object here rather than a dictionary since it makes everything look much cleaner
+	saucenao = SauceNAO(image_url)
+
 	# take a saucenao page and extract all the information from it
 	if page_html is None:
-		return None
+		return saucenao
 
 	txt = page_html.split('Low similarity results')[0]
 	soup = bs4.BeautifulSoup(txt, 'html.parser')
-
-	# we use an object here rather than a dictionary since it makes everything look much cleaner
-	saucenao = SauceNAO()
-	saucenao.saucenao_link = f"http://saucenao.com/search.php?db=999&url={image_url}"
 	soup_str = str(soup)
 
 	creator = re.search(r"Creator: <\/strong>([\w\d\s\-_.*()\[\]]*)<br\/>", soup_str)
@@ -151,11 +151,29 @@ def get_saucenao_page(image_url, saucenao_key):
 		return None
 
 
+def get_sauce(image_url, saucenao_key, redis):
+	# look up image url in cache
+	encoded = redis.get(image_url)
+	if encoded is not None:
+		saucenao = SauceNAO(image_url)
+		saucenao.decode(encoded)
+		return saucenao
+
+	# get the saucenao page html
+	saucenao_page = get_saucenao_page(image_url, env_values['saucenao_key'])
+	# then parse it into an object
+	saucenao = parse_saucenao(saucenao_page, image_url)
+	# store result in cache
+	redis.set(image_url, saucenao.encode())
+
+	return saucenao
+
+
 def build_comment(saucenao):
 	# take the saucenao fields and build out the comment to respond with
 	# rather than just appending strings one after another, we make a list of all of them and put them
 	# together at the end, it's more efficient
-	if saucenao is None:
+	if saucenao.is_empty():
 		return None
 
 	bldr = []
@@ -246,6 +264,8 @@ if __name__ == '__main__':
 	if reddit is None:
 		sys.exit(1)
 
+	redis = Redis.from_url(env_values['REDIS_URL'])
+
 	log.info("Loading list of moderated subs...")
 	multireddits = build_multireddits()
 
@@ -279,11 +299,9 @@ if __name__ == '__main__':
 					else:
 						log.info(
 							f"Processing post {submission.id} in r/{submission.subreddit.display_name} with url {image_url}")
-						# get the saucenao page html
-						saucenao_page = get_saucenao_page(image_url, env_values['saucenao_key'])
-						# then parse it into an object
-						saucenao = parse_saucenao(saucenao_page, image_url)
-						# and finally try building the result comment
+						# get saucenao results (with Redis caching)
+						saucenao = get_sauce(image_url, env_values['saucenao_key'], redis)
+						# try building the result comment
 						comment_reply = build_comment(saucenao)
 
 						# if we didn't find a source, message the post author and post the comment

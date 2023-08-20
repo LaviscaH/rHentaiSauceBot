@@ -8,8 +8,9 @@ praw = "*"
 discord-logging = {editable = true, git = "https://github.com/Watchful1/DiscordLogging.git"}
 requests = "*"
 beautifulsoup4 = "*"
+redis = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.8"
+python_version = "3.9"
