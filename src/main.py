@@ -311,7 +311,7 @@ if __name__ == '__main__':
 								"Sauce not found!",
 								f"I couldn't find the source for your [recent submission]({submission.permalink}). "
 								f"Please consider putting it in the comments yourself.")
-							result_comment = submission.reply(not_found_text())
+							result_comment = submission.reply(templates['not_found'].render({ 'submission': submission }))
 							result_comment.mod.remove()
 						else:
 							log.info(f"Source found, replying with comment")
