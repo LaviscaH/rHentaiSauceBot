@@ -18,7 +18,7 @@ from saucenao import SauceNAO
 
 def load_environment():
 	# rather than hard coding the credentials in the code, we'll use heroku's environment variables
-	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL', 'comment_footer', 'not_found'],
+	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL', 'comment_footer', 'not_found']
 	success = True
 	variables = {}
 	for name in variable_names:
