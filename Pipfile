@@ -5,7 +5,6 @@ name = "pypi"
 
 [packages]
 praw = "*"
-discord-logging = {editable = true, git = "https://github.com/Watchful1/DiscordLogging.git"}
 requests = "*"
 beautifulsoup4 = "*"
 redis = "*"
