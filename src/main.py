@@ -4,9 +4,10 @@ import re
 import requests
 import praw
 import discord_logging
-import bs4
 import traceback
 import time
+import json
+from datetime import datetime
 from redis import Redis
 from jinja2 import Template
 
@@ -19,19 +20,23 @@ from saucenao import SauceNAO
 def load_environment():
 	# rather than hard coding the credentials in the code, we'll use heroku's environment variables
 	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL', 'comment_footer', 'not_found']
-	success = True
+	variables_with_default = {
+		'caching': 'no',
+		'metrics': 'no',
+	}
 	variables = {}
 	for name in variable_names:
 		value = os.getenv(name)
 		if value is None:
 			log.warning(f"`{name}` is missing from environment")
-			success = False
+			return None
 		else:
 			variables[name] = value
-	if success:
-		return variables
-	else:
-		return None
+
+	for name in variables_with_default.keys():
+		variables[name] = os.getenv(name) or variables_with_default[name]
+
+	return variables
 
 	
 def init_templates(env_values):
@@ -104,76 +109,34 @@ def get_submissions_from_multireddit(reddit, multireddit, submissions):
 		log.warning(traceback.format_exc())
 
 
-def parse_saucenao(page_html, image_url):
-	# we use an object here rather than a dictionary since it makes everything look much cleaner
-	saucenao = SauceNAO(image_url)
+def record_metrics(redis, timestamp, data):
+	# Get closest start of the hour
+	hour = timestamp.replace(microsecond=0, second=0, minute=0)
+	bucket = f"metrics_${int(hour.timestamp)}"
+	redis.lpush(bucket, json.dumps(data))
 
-	# take a saucenao page and extract all the information from it
-	if page_html is None:
-		return saucenao
+def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False):
+	timestamp = datetime.now()
+	saucenao = SauceNAO(image_url, saucenao_key)
+	if caching:
+		# look up image url in cache
+		encoded = redis.get(image_url)
+		if encoded is not None:
+			log.info(f"Found cache entry for {image_url}")
+			saucenao.decode(encoded)
+			if metrics: record_metrics(redis, timestamp, { image: image_url, cache: True })
+			return saucenao
 
-	txt = page_html.split('Low similarity results')[0]
-	soup = bs4.BeautifulSoup(txt, 'html.parser')
-	soup_str = str(soup)
+	# query saucenao
+	metadata = saucenao.query()
+	if metrics:
+		metadata['image'] = image_url
+		metadata['cache'] = False
+		record_metrics(redis, timestamp, metadata)
 
-	creator = re.search(r"Creator: <\/strong>([\w\d\s\-_.*()\[\]]*)<br\/>", soup_str)
-	if creator:
-		saucenao.creator = creator.group(1)
-	material = re.search(r"Material: <\/strong>([\w\d\s\-_.*()\[\]]*)<br\/>", soup_str)
-	if material:
-		saucenao.material = material.group(1)
-	author = re.search(r'Author: <\/strong><[\w\s\d="\-_\.\/\?:]*>([\w\d\s\-_.*()\[\]]*)<\/a>', soup_str)
-	if author:
-		saucenao.author = author.group(1)
-	member = re.search(r'Member: <\/strong><[\w\s\d="\-_\.\/\?:]*>([\w\d\s\-_.*()\[\]]*)<\/a>', soup_str)
-	if member:
-		saucenao.member = member.group(1)
-
-	for link in soup.find_all('a'):
-		pg = link.get('href')
-		if re.search(r"[\w]+\.deviantart\.com", pg):
-			saucenao.update_if_none('deviantart_art', pg)
-		if re.search(r"deviantart\.com\/view\/", pg):
-			saucenao.update_if_none('deviantart_src', pg)
-		if re.search(r"pixiv\.net\/member\.", pg):
-			saucenao.update_if_none('pixev_art', pg)
-		if re.search(r"pixiv\.net\/member_illust", pg):
-			saucenao.update_if_none('pixev_src', pg)
-		if re.search(r"gelbooru\.com\/index\.php\?page", pg):
-			saucenao.update_if_none('gelbooru', pg)
-		if re.search(r"danbooru\.donmai\.us\/post\/", pg):
-			saucenao.update_if_none('danbooru', pg)
-		if re.search(r"chan\.sankakucomplex\.com\/post", pg):
-			saucenao.update_if_none('sankaku', pg)
-
-	return saucenao
-
-
-def get_saucenao_page(image_url, saucenao_key):
-	try:
-		resp = requests.get(f"http://saucenao.com/search.php?db=999&api_key={saucenao_key}&url={image_url}")
-		return resp.text
-	except Exception as err:
-		log.warning(f"Failed to load saucenao page: {err}")
-		log.warning(traceback.format_exc())
-		return None
-
-
-def get_sauce(image_url, saucenao_key, redis):
-	# look up image url in cache
-	encoded = redis.get(image_url)
-	if encoded is not None:
-		log.info(f"Found cache entry for {image_url}")
-		saucenao = SauceNAO(image_url)
-		saucenao.decode(encoded)
-		return saucenao
-
-	# get the saucenao page html
-	saucenao_page = get_saucenao_page(image_url, env_values['saucenao_key'])
-	# then parse it into an object
-	saucenao = parse_saucenao(saucenao_page, image_url)
-	# store result in cache
-	redis.set(image_url, saucenao.encode())
+	if caching:
+		# store result in cache
+		redis.set(image_url, saucenao.encode(), ex=604800) # expire in a week
 
 	return saucenao
 
@@ -209,7 +172,7 @@ def build_comment(saucenao, templates, submission):
 
 	if saucenao.material is not None:
 		bldr.append('**Material:** ')
-		bldr.append(saucenao.material.title())
+		bldr.append(saucenao.material)
 		if saucenao.material != 'original':
 			bldr.append(' [^({{Google it!}})](http://www.google.com/search?q=')
 			bldr.append(saucenao.material.replace(' ', '+'))
@@ -264,7 +227,9 @@ if __name__ == '__main__':
 	if reddit is None:
 		sys.exit(1)
 
-	redis = Redis.from_url(env_values['REDIS_URL'])
+	caching = env_values['caching'] == 'yes'
+	metrics = env_values['metrics'] == 'yes'
+	redis = Redis.from_url(env_values['REDIS_URL']) if caching or metrics else None
 
 	log.info("Loading list of moderated subs...")
 	multireddits = build_multireddits()
@@ -300,7 +265,7 @@ if __name__ == '__main__':
 						log.info(
 							f"Processing post {submission.id} in r/{submission.subreddit.display_name} with url {image_url}")
 						# get saucenao results (with Redis caching)
-						saucenao = get_sauce(image_url, env_values['saucenao_key'], redis)
+						saucenao = get_sauce(image_url, env_values['saucenao_key'], redis, caching, metrics)
 						# try building the result comment
 						comment_reply = build_comment(saucenao, templates, submission)
 

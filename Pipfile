@@ -6,9 +6,9 @@ name = "pypi"
 [packages]
 praw = "*"
 requests = "*"
-beautifulsoup4 = "*"
 redis = "*"
 jinja2 = "*"
+pysaucenao = "*"
 
 [dev-packages]
 
