@@ -111,10 +111,10 @@ def get_submissions_from_multireddit(reddit, multireddit, submissions):
 
 def record_metrics(redis, timestamp, data):
 	# Add timestamp to datapoint
-	data['ts'] = timestamp.timestamp
+	data['ts'] = timestamp.timestamp()
 	# Get closest start of the hour
 	hour = timestamp.replace(microsecond=0, second=0, minute=0)
-	bucket = f"metrics_${int(hour.timestamp)}"
+	bucket = f"metrics_${int(hour.timestamp())}"
 	redis.lpush(bucket, json.dumps(data))
 
 def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False):
