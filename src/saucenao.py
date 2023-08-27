@@ -70,7 +70,8 @@ class SauceNAO:
 			return { 'error_type': type(err).__name__.split('.').pop() }
 
 		for result in results:
-			if hasattr(result, 'material'): self.update_if_none('material', result.material[0])
+			if hasattr(result, 'material') and isinstance(result.material, list):
+				self.update_if_none('material', result.material[0])
 
 			if isinstance(result, PixivSource):
 				self.update_if_none('member', result.author_name)
