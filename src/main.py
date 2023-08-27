@@ -137,7 +137,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False)
 		record_metrics(redis, timestamp, metadata)
 
 	if 'error_type' in metadata:
-		print(f'Error: {metadata['error_type']}')
+		print(f'Error: {metadata["error_type"]}')
 		return saucenao
 
 	if caching:
