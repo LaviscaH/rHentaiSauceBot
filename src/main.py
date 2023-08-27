@@ -109,9 +109,10 @@ def get_submissions_from_multireddit(reddit, multireddit, submissions):
 		log.warning(traceback.format_exc())
 
 
-def record_metrics(redis, timestamp, data):
-	# Add timestamp to datapoint
+def record_metrics(redis, timestamp, bot, data):
+	# Add timestamp and bot to datapoint
 	data['ts'] = timestamp.timestamp()
+	data['bot'] = bot
 	# Get closest start of the hour
 	hour = timestamp.replace(microsecond=0, second=0, minute=0)
 	bucket = f"metrics_{int(hour.timestamp())}"
@@ -126,7 +127,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False)
 		if encoded is not None:
 			log.info(f"Found cache entry for {image_url}")
 			saucenao.decode(encoded)
-			if metrics: record_metrics(redis, timestamp, { image: image_url, cache: True })
+			if metrics: record_metrics(redis, timestamp, saucenao_key, { image: image_url, cache: True })
 			return saucenao
 
 	# query saucenao
@@ -134,7 +135,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False)
 	if metrics:
 		metadata['image'] = image_url
 		metadata['cache'] = False
-		record_metrics(redis, timestamp, metadata)
+		record_metrics(redis, timestamp, saucenao_key, metadata)
 
 	if 'error_type' in metadata:
 		print(f'Error: {metadata["error_type"]}')
