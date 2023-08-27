@@ -118,7 +118,7 @@ def record_metrics(redis, timestamp, bot, data):
 	bucket = f"metrics_{int(hour.timestamp())}"
 	redis.lpush(bucket, json.dumps(data))
 
-def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False):
+def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False, submission=None):
 	timestamp = datetime.now()
 	saucenao = SauceNAO(image_url, saucenao_key)
 	if caching:
@@ -127,14 +127,17 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False)
 		if encoded is not None:
 			log.info(f"Found cache entry for {image_url}")
 			saucenao.decode(encoded)
-			if metrics: record_metrics(redis, timestamp, saucenao_key, { image: image_url, cache: True })
+			if metrics:
+				metadata = { cache: True, image: image_url, subreddit: submission.subreddit.display_name }
+				record_metrics(redis, timestamp, saucenao_key, metadata)
 			return saucenao
 
 	# query saucenao
 	metadata = saucenao.query()
 	if metrics:
-		metadata['image'] = image_url
 		metadata['cache'] = False
+		metadata['image'] = image_url
+		metadata['subreddit'] = submission.subreddit.display_name
 		record_metrics(redis, timestamp, saucenao_key, metadata)
 
 	if 'error_type' in metadata:
@@ -272,7 +275,7 @@ if __name__ == '__main__':
 						log.info(
 							f"Processing post {submission.id} in r/{submission.subreddit.display_name} with url {image_url}")
 						# get saucenao results (with Redis caching)
-						saucenao = get_sauce(image_url, env_values['saucenao_key'], redis, caching, metrics)
+						saucenao = get_sauce(image_url, env_values['saucenao_key'], redis, caching, metrics, submission)
 						# try building the result comment
 						comment_reply = build_comment(saucenao, templates, submission)
 
