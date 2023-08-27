@@ -1,7 +1,7 @@
 import zlib
 import json
 import asyncio
-from pysaucenao import SauceNao as Client, PixivSource
+from pysaucenao import SauceNao as Client, PixivSource, SauceNaoException
 
 METADATA_NAMES = ['short_limit', 'long_limit', 'long_remaining', 'short_remaining']
 
@@ -14,13 +14,13 @@ def get_client(api_key):
 		clients[api_key] = client
 	return client
 
-def call_async(coro):
-	try:
-		loop = asyncio.get_running_loop()
-	except RuntimeError:
-		return asyncio.run(coro)
-	else:
-		return loop.run_until_complete(coro)
+# def call_async(coro):
+# 	try:
+# 		loop = asyncio.get_running_loop()
+# 	except RuntimeError:
+# 		return asyncio.run(coro)
+# 	else:
+# 		return loop.run_until_complete(coro)
 
 class SauceNAO:
 	def __init__(self, image_url, api_key):
@@ -64,7 +64,11 @@ class SauceNAO:
 			setattr(self, key, values[i])
 
 	def query(self):
-		results = call_async(self.api.from_url(self.image_url))
+		try:
+			results = asyncio.run(self.api.from_url(self.image_url))
+		except SauceNaoException as err:
+			return { 'error_type': type(err).__name__.split('.').pop() }
+
 		for result in results:
 			if hasattr(result, 'material'): self.update_if_none('material', result.material[0])
 

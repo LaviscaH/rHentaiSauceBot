@@ -136,6 +136,10 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False)
 		metadata['cache'] = False
 		record_metrics(redis, timestamp, metadata)
 
+	if 'error_type' in metadata:
+		print(f'Error: {metadata['error_type']}')
+		return saucenao
+
 	if caching:
 		# store result in cache
 		redis.set(image_url, saucenao.encode(), ex=604800) # expire in a week
