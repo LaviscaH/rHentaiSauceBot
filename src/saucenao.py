@@ -84,13 +84,14 @@ class SauceNAO:
 			else:
 				self.update_if_none('creator', result.author_name)
 
-			for url in result.urls:
-				if 'danbooru.donmai.us' in url:
-					self.update_if_none('danbooru', url)
-				elif 'gelbooru.com' in url:
-					self.update_if_none('gelbooru', url)
-				elif 'chan.sankakucomplex.com' in url:
-					self.update_if_none('sankaku', url)
+			if isinstance(result.urls, list):
+				for url in result.urls:
+					if 'danbooru.donmai.us' in url:
+						self.update_if_none('danbooru', url)
+					elif 'gelbooru.com' in url:
+						self.update_if_none('gelbooru', url)
+					elif 'chan.sankakucomplex.com' in url:
+						self.update_if_none('sankaku', url)
 
 		metadata = {}
 		for meta in METADATA_NAMES:
