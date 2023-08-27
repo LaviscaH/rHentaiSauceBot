@@ -69,6 +69,9 @@ class SauceNAO:
 		except SauceNaoException as err:
 			return { 'error_type': type(err).__name__.split('.').pop() }
 
+		if len(results) < 1:
+			return { 'error_type': 'not_found' }
+
 		for result in results:
 			if hasattr(result, 'material') and isinstance(result.material, list):
 				self.update_if_none('material', result.material[0])
