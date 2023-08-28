@@ -35,6 +35,7 @@ class SauceNAO:
 		self.gelbooru = None
 		self.danbooru = None
 		self.sankaku = None
+		self.error_type = None
 
 		self.data_keys = list(self.__dict__.keys())
 		self.image_url = image_url
@@ -61,16 +62,19 @@ class SauceNAO:
 		if bytestr == b'': return
 		values = json.loads(zlib.decompress(bytestr))
 		for i, key in enumerate(self.data_keys):
+			if i >= len(values): break
 			setattr(self, key, values[i])
 
 	def query(self):
 		try:
 			results = asyncio.run(self.api.from_url(self.image_url))
 		except SauceNaoException as err:
-			return { 'error_type': type(err).__name__.split('.').pop() }
+			self.error_type = type(err).__name__.split('.').pop()
+			return { 'error_type': self.error_type }
 
 		if len(results) < 1:
-			return { 'error_type': 'not_found' }
+			self.error_type = 'not_found'
+			return { 'error_type': self.error_type }
 
 		for result in results:
 			if hasattr(result, 'material') and isinstance(result.material, list):

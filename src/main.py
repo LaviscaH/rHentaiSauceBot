@@ -129,6 +129,8 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False,
 			saucenao.decode(encoded)
 			if metrics:
 				metadata = { cache: True, image: image_url, subreddit: submission.subreddit.display_name }
+				if saucenao.error_type is not None:
+					metadata['error_type'] = saucenao.error_type
 				record_metrics(redis, timestamp, saucenao_key, metadata)
 			return saucenao
 
@@ -140,7 +142,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False,
 		metadata['subreddit'] = submission.subreddit.display_name
 		record_metrics(redis, timestamp, saucenao_key, metadata)
 
-	if 'error_type' in metadata:
+	if 'error_type' in metadata and metadata['error_type'] != 'not_found':
 		print(f'Error: {metadata["error_type"]}')
 		return saucenao
 
