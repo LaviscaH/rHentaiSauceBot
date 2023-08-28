@@ -128,7 +128,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False,
 			log.info(f"Found cache entry for {image_url}")
 			saucenao.decode(encoded)
 			if metrics:
-				metadata = { cache: True, image: image_url, subreddit: submission.subreddit.display_name }
+				metadata = { 'cache': True, 'image': image_url, 'subreddit': submission.subreddit.display_name }
 				if saucenao.error_type is not None:
 					metadata['error_type'] = saucenao.error_type
 				record_metrics(redis, timestamp, saucenao_key, metadata)
