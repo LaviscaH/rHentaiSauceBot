@@ -126,7 +126,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False,
 		encoded = redis.get(image_url)
 		if encoded is not None:
 			log.info(f"Found cache entry for {image_url}")
-			saucenao.decode(encoded)
+			saucenao.decode_string(encoded)
 			if metrics:
 				metadata = { 'cache': True, 'image': image_url, 'subreddit': submission.subreddit.display_name }
 				if saucenao.error_type is not None:
@@ -149,7 +149,7 @@ def get_sauce(image_url, saucenao_key, redis=None, caching=False, metrics=False,
 	if caching:
 		# store result in cache
 		expiration = 10800 if 'error_type' in metadata else 604800 # expire in a week
-		redis.set(image_url, saucenao.encode(), ex=expiration)
+		redis.set(image_url, saucenao.encode_string(), ex=expiration)
 
 	return saucenao
 

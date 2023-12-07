@@ -65,6 +65,19 @@ class SauceNAO:
 			if i >= len(values): break
 			setattr(self, key, values[i])
 
+	def encode_string(self):
+		values = [getattr(self, key) for key in self.data_keys]
+		if all(value is None for value in values):
+			return ''
+		return json.dumps(values)
+
+	def decode_string(self, s):
+		if s == '': return
+		values = json.loads(s)
+		for i, key in enumerate(self.data_keys):
+			if i >= len(values): break
+			setattr(self, key, values[i])
+
 	def query(self):
 		try:
 			results = asyncio.run(self.api.from_url(self.image_url))
