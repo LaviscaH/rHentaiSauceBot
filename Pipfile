@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 praw = "*"
 requests = "*"
-redis = "*"
+upstash-redis = "*"
 jinja2 = "*"
 pysaucenao = "*"
 

@@ -8,7 +8,7 @@ import traceback
 import time
 import json
 from datetime import datetime
-from redis import Redis
+from upstash_redis import Redis
 from jinja2 import Template
 
 # this is a logging setup library. But we only want to print out to the console, so we tell it to skip logging to a file
@@ -19,7 +19,7 @@ from saucenao import SauceNAO
 
 def load_environment():
 	# rather than hard coding the credentials in the code, we'll use heroku's environment variables
-	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'REDIS_URL', 'comment_footer', 'not_found']
+	variable_names = ['username', 'password', 'client_id', 'client_secret', 'saucenao_key', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'comment_footer', 'not_found']
 	variables_with_default = {
 		'caching': 'no',
 		'metrics': 'no',
@@ -242,7 +242,8 @@ if __name__ == '__main__':
 
 	caching = env_values['caching'] == 'yes'
 	metrics = env_values['metrics'] == 'yes'
-	redis = Redis.from_url(env_values['REDIS_URL']) if caching or metrics else None
+	# redis = Redis.from_url(env_values['REDIS_URL']) if caching or metrics else None
+	redis = Redis.from_env() if caching or metrics else None
 
 	log.info("Loading list of moderated subs...")
 	multireddits = build_multireddits()
