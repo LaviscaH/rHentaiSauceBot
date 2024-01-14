@@ -7,9 +7,12 @@ import discord_logging
 import traceback
 import time
 import json
+import inspect
 from datetime import datetime
 from upstash_redis import Redis
 from jinja2 import Template
+from praw.exceptions import RedditAPIException
+from prawcore.exceptions import Forbidden
 
 # this is a logging setup library. But we only want to print out to the console, so we tell it to skip logging to a file
 log = discord_logging.init_logging(folder=None)
@@ -227,6 +230,27 @@ def build_comment(saucenao, templates, submission):
 	return ''.join(bldr)
 
 
+def try_reply(submission, comment_body):
+	try:
+		result_comment = submission.reply(comment_body)
+	except RedditAPIException as err:
+		if len(err.items) == 1:
+			if err.items[0].error_type == 'THREAD_LOCKED':
+				log.info("Post is locked, sending modmail")
+				submission.subreddit.message(subject="SauceNaoBot cannot process locked posts", message=f"Post appears to be locked: {submission.url}")
+				return None
+		raise err
+
+def try_mod_action(subreddit, mod_action):
+	try:
+		return mod_action()
+	except Forbidden as err:
+		log.info(f"Insufficient mod permissions, sending modmail {{{inspect.getsource(mod_action)}}}")
+		submission.subreddit.message(
+			subject="Insufficient mod permissions",
+			message=f'SauceNaoBot requires the "Manage Posts & Comments" permission. The following post could not be processed: {submission.url}'
+		)
+
 if __name__ == '__main__':
 	log.info("Starting up...")
 
@@ -273,8 +297,9 @@ if __name__ == '__main__':
 					if image_url is None:
 						log.info(
 							f"Post {submission.id} in r/{submission.subreddit.display_name} didn't have a url to lookup")
-						result_comment = submission.reply(templates['not_found'].render({ 'submission': submission }))
-						result_comment.mod.remove()
+						result_comment = try_reply(submission, templates['not_found'].render({ 'submission': submission }))
+						if result_comment is not None:
+							try_mod_action(submission.subreddit, lambda: result_comment.mod.remove())
 					else:
 						log.info(
 							f"Processing post {submission.id} in r/{submission.subreddit.display_name} with url {image_url}")
@@ -290,12 +315,14 @@ if __name__ == '__main__':
 								"Sauce not found!",
 								f"I couldn't find the source for your [recent submission]({submission.permalink}). "
 								f"Please consider putting it in the comments yourself.")
-							result_comment = submission.reply(templates['not_found'].render({ 'submission': submission }))
-							result_comment.mod.remove()
+							result_comment = try_reply(submission, templates['not_found'].render({ 'submission': submission }))
+							if result_comment is not None:
+								try_mod_action(submission.subreddit, lambda: result_comment.mod.remove())
 						else:
 							log.info(f"Source found, replying with comment")
-							result_comment = submission.reply(comment_reply)
-							result_comment.mod.distinguish(sticky=True)
+							result_comment = try_reply(submission, comment_reply)
+							if result_comment is not None:
+								try_mod_action(submission.subreddit, lambda: result_comment.mod.distinguish(sticky=True))
 
 					submission.save()
 
