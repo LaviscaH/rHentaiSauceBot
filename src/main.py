@@ -232,7 +232,7 @@ def build_comment(saucenao, templates, submission):
 
 def try_reply(submission, comment_body):
 	try:
-		result_comment = submission.reply(comment_body)
+		return submission.reply(comment_body)
 	except RedditAPIException as err:
 		if len(err.items) == 1:
 			if err.items[0].error_type == 'THREAD_LOCKED':
