@@ -287,7 +287,7 @@ if __name__ == '__main__':
 					image_url = None
 					comment_reply = None
 					# figure out if this post is an image we can process
-					if submission.url.split('.')[-1] in ('.png', '.jpg', '.jpeg'):
+					if submission.url.split('.')[-1] in ('png', 'jpg', 'jpeg'):
 						image_url = submission.url
 					elif(submission.url[8:14] == 'imgur.' and submission.url[17:20] != '/a/') or \
 							(submission.url[8:16] == 'i.imgur.' and submission.url[19:22] != '/a/'):
